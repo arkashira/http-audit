@@ -1,14 +1,15 @@
-[build-system]
-requires = ["poetry>=0.12"]
-build-backend = "poetry.masonry.api"
-
-[tool.poetry]
+[project]
 name = "http-audit"
-version = "1.0.0"
-description = "HTTP Audit Profiler"
+version = "0.1.0"
+description = "Kernel-Level HTTP Interaction Collector with process/PID filtering"
+authors = [{name = "Axentx", email = "dev@axentx.com"}]
+requires-python = ">=3.8"
 
-[tool.poetry.dependencies]
-python = "^3.8"
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
 
-[tool.poetry.dev-dependencies]
-pytest = "^6.2.5"
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
