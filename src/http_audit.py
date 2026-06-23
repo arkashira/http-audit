@@ -1,122 +1,85 @@
-#!/usr/bin/env python3
-"""
-Simple kernel-level HTTP interaction collector with process/PID filtering.
-"""
-
 import argparse
 import json
-import os
-import signal
-import sys
-from dataclasses import dataclass, field
-from typing import List, Optional, Set, Dict, Any
+from dataclasses import dataclass
+from enum import Enum
+from typing import List
 
+class HTTPMethod(Enum):
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    DELETE = "DELETE"
 
 @dataclass
-class Config:
-    processes: Set[str] = field(default_factory=set)
-    pids: Set[int] = field(default_factory=set)
-    log_file: str = "http_audit.log"
+class HTTPRequest:
+    method: HTTPMethod
+    url: str
+    headers: dict
+    body: str
 
+@dataclass
+class HTTPResponse:
+    status_code: int
+    headers: dict
+    body: str
 
-class EventFilter:
-    """Filter events based on process names or PIDs."""
+class HTTPAudit:
+    def __init__(self):
+        self.traffic = []
 
-    def __init__(self, config: Config):
-        self.config = config
+    def capture(self, request: HTTPRequest, response: HTTPResponse):
+        self.traffic.append((request, response))
 
-    def matches(self, event: Dict[str, Any]) -> bool:
-        """
-        Return True if the event matches the current filter criteria.
-        Event must contain 'process_name' and 'pid'.
-        """
-        pname = event.get("process_name")
-        pid = event.get("pid")
-        if pname is None or pid is None:
-            return False
-        if self.config.processes and pname not in self.config.processes:
-            return False
-        if self.config.pids and pid not in self.config.pids:
-            return False
-        return True
+    def filter(self, method: HTTPMethod = None, url: str = None):
+        filtered_traffic = []
+        for request, response in self.traffic:
+            if (method is None or request.method == method) and (url is None or request.url == url):
+                filtered_traffic.append((request, response))
+        return filtered_traffic
 
+    def export(self, traffic):
+        data = []
+        for request, response in traffic:
+            data.append({
+                "method": request.method.value,
+                "url": request.url,
+                "headers": request.headers,
+                "body": request.body,
+                "status_code": response.status_code,
+                "response_headers": response.headers,
+                "response_body": response.body
+            })
+        return json.dumps(data, indent=4)
 
-class Logger:
-    """Simple logger that writes JSON lines to a file."""
+def main():
+    parser = argparse.ArgumentParser(description="HTTP Audit Tool")
+    parser.add_argument("--filter-method", help="Filter by HTTP method")
+    parser.add_argument("--filter-url", help="Filter by URL")
+    parser.add_argument("--export", action="store_true", help="Export HTTP traffic data")
+    args = parser.parse_args()
 
-    def __init__(self, path: str):
-        self.path = path
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    audit = HTTPAudit()
+    # Simulate capturing HTTP traffic
+    audit.capture(HTTPRequest(HTTPMethod.GET, "https://example.com", {"Accept": "application/json"}, ""), HTTPResponse(200, {"Content-Type": "application/json"}, "{\"message\": \"Hello World\"}"))
+    audit.capture(HTTPRequest(HTTPMethod.POST, "https://example.com", {"Content-Type": "application/json"}, "{\"name\": \"John Doe\"}"), HTTPResponse(201, {"Location": "/users/1"}, "{\"id\": 1, \"name\": \"John Doe\"}"))
 
-    def log(self, event: Dict[str, Any]) -> None:
-        with open(self.path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(event) + "\n")
+    if args.filter_method:
+        method = HTTPMethod(args.filter_method)
+    else:
+        method = None
 
+    if args.filter_url:
+        url = args.filter_url
+    else:
+        url = None
 
-class Collector:
-    """Collects events, applies filters, and logs them."""
+    filtered_traffic = audit.filter(method, url)
 
-    def __init__(self, config: Config):
-        self.config = config
-        self.filter = EventFilter(config)
-        self.logger = Logger(config.log_file)
-
-    def process_event(self, event: Dict[str, Any]) -> None:
-        if self.filter.matches(event):
-            self.logger.log(event)
-
-    def reload_config(self, signum, frame) -> None:
-        """Signal handler to reload filters from command line args."""
-        # In a real daemon we would re-read args or a config file.
-        # For this demo, we simply toggle a flag to indicate reload.
-        self.config.processes = set()
-        self.config.pids = set()
-
-
-def parse_args(argv: Optional[List[str]] = None) -> Config:
-    parser = argparse.ArgumentParser(description="Kernel-Level HTTP Interaction Collector")
-    parser.add_argument(
-        "--processes",
-        type=str,
-        default="",
-        help="Comma-separated list of binary names to filter",
-    )
-    parser.add_argument(
-        "--pids",
-        type=str,
-        default="",
-        help="Comma-separated list of PIDs to filter",
-    )
-    parser.add_argument(
-        "--log-file",
-        type=str,
-        default="http_audit.log",
-        help="Path to the log file",
-    )
-    args = parser.parse_args(argv)
-
-    processes = {p.strip() for p in args.processes.split(",") if p.strip()}
-    pids = {int(p.strip()) for p in args.pids.split(",") if p.strip()}
-    return Config(processes=processes, pids=pids, log_file=args.log_file)
-
-
-def main(argv: Optional[List[str]] = None) -> None:
-    config = parse_args(argv)
-    collector = Collector(config)
-
-    # Register SIGHUP to reload config
-    signal.signal(signal.SIGHUP, collector.reload_config)
-
-    # In a real implementation, this would hook into kernel events.
-    # Here we just read JSON lines from stdin for demonstration.
-    for line in sys.stdin:
-        try:
-            event = json.loads(line)
-            collector.process_event(event)
-        except json.JSONDecodeError:
-            continue
-
+    if args.export:
+        print(audit.export(filtered_traffic))
+    else:
+        for request, response in filtered_traffic:
+            print(f"Method: {request.method.value}, URL: {request.url}, Status Code: {response.status_code}")
 
 if __name__ == "__main__":
     main()

@@ -1,13 +1,7 @@
-# http-audit
+# HTTP Audit Tool
 
-A lightweight kernel‑level HTTP interaction collector that filters events by
-process name or PID.  It supports dynamic filter changes via `SIGHUP`.
-
-## Features
-
-- CLI flags `--processes` and `--pids` accept comma‑separated values.
-- Only events matching the filters are logged.
-- Filters can be reloaded at runtime by sending `SIGHUP` to the process.
-- Minimal dependency footprint – only the Python standard library.
+This tool provides real-time visibility into HTTP traffic at the kernel level.
 
 ## Usage
+
+To use the tool, simply run the `http_audit.py` script with the desired options.
