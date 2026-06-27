@@ -1,85 +1,40 @@
 import argparse
 import json
 from dataclasses import dataclass
-from enum import Enum
 from typing import List
 
-class HTTPMethod(Enum):
-    GET = "GET"
-    POST = "POST"
-    PUT = "PUT"
-    DELETE = "DELETE"
-
 @dataclass
-class HTTPRequest:
-    method: HTTPMethod
+class HttpEvent:
     url: str
-    headers: dict
-    body: str
+    method: str
+    status: int
 
-@dataclass
-class HTTPResponse:
-    status_code: int
-    headers: dict
-    body: str
+class HttpAudit:
+    def __init__(self, e_bpf_capability: bool, remote_endpoint: str, alert_config: dict):
+        self.e_bpf_capability = e_bpf_capability
+        self.remote_endpoint = remote_endpoint
+        self.alert_config = alert_config
+        self.http_events = []
 
-class HTTPAudit:
-    def __init__(self):
-        self.traffic = []
+    def run(self):
+        # Simulate running the agent in privileged mode
+        self.http_events.append(HttpEvent("https://example.com", "GET", 200))
+        return self.http_events
 
-    def capture(self, request: HTTPRequest, response: HTTPResponse):
-        self.traffic.append((request, response))
-
-    def filter(self, method: HTTPMethod = None, url: str = None):
-        filtered_traffic = []
-        for request, response in self.traffic:
-            if (method is None or request.method == method) and (url is None or request.url == url):
-                filtered_traffic.append((request, response))
-        return filtered_traffic
-
-    def export(self, traffic):
-        data = []
-        for request, response in traffic:
-            data.append({
-                "method": request.method.value,
-                "url": request.url,
-                "headers": request.headers,
-                "body": request.body,
-                "status_code": response.status_code,
-                "response_headers": response.headers,
-                "response_body": response.body
-            })
-        return json.dumps(data, indent=4)
+    def report(self):
+        # Simulate reporting HTTP events
+        return self.http_events
 
 def main():
-    parser = argparse.ArgumentParser(description="HTTP Audit Tool")
-    parser.add_argument("--filter-method", help="Filter by HTTP method")
-    parser.add_argument("--filter-url", help="Filter by URL")
-    parser.add_argument("--export", action="store_true", help="Export HTTP traffic data")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--e-bpf-capability", action="store_true")
+    parser.add_argument("--remote-endpoint", type=str)
+    parser.add_argument("--alert-config", type=json.loads)
     args = parser.parse_args()
 
-    audit = HTTPAudit()
-    # Simulate capturing HTTP traffic
-    audit.capture(HTTPRequest(HTTPMethod.GET, "https://example.com", {"Accept": "application/json"}, ""), HTTPResponse(200, {"Content-Type": "application/json"}, "{\"message\": \"Hello World\"}"))
-    audit.capture(HTTPRequest(HTTPMethod.POST, "https://example.com", {"Content-Type": "application/json"}, "{\"name\": \"John Doe\"}"), HTTPResponse(201, {"Location": "/users/1"}, "{\"id\": 1, \"name\": \"John Doe\"}"))
-
-    if args.filter_method:
-        method = HTTPMethod(args.filter_method)
-    else:
-        method = None
-
-    if args.filter_url:
-        url = args.filter_url
-    else:
-        url = None
-
-    filtered_traffic = audit.filter(method, url)
-
-    if args.export:
-        print(audit.export(filtered_traffic))
-    else:
-        for request, response in filtered_traffic:
-            print(f"Method: {request.method.value}, URL: {request.url}, Status Code: {response.status_code}")
+    http_audit = HttpAudit(args.e_bpf_capability, args.remote_endpoint, args.alert_config)
+    http_events = http_audit.run()
+    print(json.dumps([event.__dict__ for event in http_events]))
 
 if __name__ == "__main__":
     main()

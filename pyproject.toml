@@ -5,7 +5,7 @@ build-backend = "poetry.masonry.api"
 [tool.poetry]
 name = "http-audit"
 version = "1.0.0"
-description = "HTTP Audit Tool"
+description = ""
 
 [tool.poetry.dependencies]
 python = "^3.8"
